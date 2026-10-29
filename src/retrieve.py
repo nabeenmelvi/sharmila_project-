@@ -122,7 +122,9 @@ if __name__ == "__main__":
         results = retriever.search(args.query, top_k=args.top_k)
         print(f"\nResults for query: '{args.query}':\n")
         for res in results:
-            print(f"Rank {res['rank']} [Score: {res['score']:.4f}] PMID: {res['pmid']}")
+            pub_types_str = ", ".join(res.get("pub_types", [])) if res.get("pub_types") else "N/A"
+            print(f"Rank {res['rank']} [Score: {res['score']:.4f}] PMID: {res['pmid']} (Year: {res.get('year', 'N/A')})")
+            print(f"Evidence Level: {res.get('stratum', 'N/A')} | Pub Types: {pub_types_str}")
             print(f"Title: {res['title']}")
             print(f"Chunk: {res['chunk_text']}\n")
     except Exception as e:

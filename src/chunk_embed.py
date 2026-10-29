@@ -1,4 +1,7 @@
 """Chunk, embed, and index biomedical abstracts using SentenceTransformers and FAISS.
+
+Carries full evidence metadata (pmid, year, pub_types, topic, stratum, doi, journal, mesh_terms)
+into each chunk so downstream retrieval and Evidence Agents can filter and weigh evidence levels.
 """
 
 import os
@@ -46,25 +49,39 @@ def chunk_text(text: str, chunk_size: int = 150, overlap: int = 30) -> List[str]
     return chunks
 
 
-def prepare_chunks(records: List[Dict[str, Any]]) -> Tuple[List[str], List[Dict[str, Any]]]:
-    """Break records into chunks with tracked metadata.
+def prepare_chunks(
+    records: List[Dict[str, Any]],
+    chunk_size: int = 150,
+    overlap: int = 30
+) -> Tuple[List[str], List[Dict[str, Any]]]:
+    """Break records into chunks with tracked evidence metadata.
 
     Args:
-        records: List of document dicts with pmid, title, abstract.
+        records: List of document dicts with pmid, title, abstract, pub_types, etc.
+        chunk_size: Words per chunk.
+        overlap: Overlapping words between adjacent chunks.
 
     Returns:
         (chunks, metadata_list)
     """
-    all_chunks = []
-    metadata = []
+    all_chunks: List[str] = []
+    metadata: List[Dict[str, Any]] = []
 
     for doc_idx, rec in enumerate(records):
-        pmid = rec.get("pmid", str(doc_idx))
+        pmid = str(rec.get("pmid", doc_idx))
         title = rec.get("title", "")
         abstract = rec.get("abstract", "")
-        full_text = f"{title}. {abstract}".strip()
+        year = rec.get("year", "")
+        pub_types = rec.get("pub_types", [])
+        topic = rec.get("topic", "")
+        stratum = rec.get("stratum", "")
+        doi = rec.get("doi", "")
+        journal = rec.get("journal", "")
+        mesh_terms = rec.get("mesh_terms", [])
 
-        chunks = chunk_text(full_text)
+        full_text = f"{title}. {abstract}".strip()
+        chunks = chunk_text(full_text, chunk_size=chunk_size, overlap=overlap)
+
         for chunk_idx, chunk in enumerate(chunks):
             all_chunks.append(chunk)
             metadata.append({
@@ -72,7 +89,14 @@ def prepare_chunks(records: List[Dict[str, Any]]) -> Tuple[List[str], List[Dict[
                 "pmid": pmid,
                 "title": title,
                 "chunk_text": chunk,
-                "doc_idx": doc_idx
+                "doc_idx": doc_idx,
+                "year": year,
+                "pub_types": pub_types,
+                "topic": topic,
+                "stratum": stratum,
+                "doi": doi,
+                "journal": journal,
+                "mesh_terms": mesh_terms,
             })
 
     logger.info(f"Generated {len(all_chunks)} chunks from {len(records)} documents.")
@@ -141,18 +165,53 @@ def save_index_and_metadata(index, metadata: List[Dict[str, Any]], prefix: str =
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Chunk documents and build vector index.")
+    parser = argparse.ArgumentParser(description="Chunk documents and build vector index with evidence metadata.")
     parser.add_argument("--data_file", type=str, default="pubmed_abstracts.json", help="Filename in data/ directory")
     parser.add_argument("--model", type=str, default="sentence-transformers/all-MiniLM-L6-v2", help="Embedding model name")
+    parser.add_argument("--chunk_size", type=int, default=150, help="Word chunk size")
+    parser.add_argument("--overlap", type=int, default=30, help="Word overlap between chunks")
     args = parser.parse_args()
 
     data_path = DATA_DIR / args.data_file
     if not data_path.exists():
         logger.warning(f"Data file {data_path} not found. Creating mock data for indexing demonstration...")
         mock_data = [
-            {"pmid": "1001", "title": "Metformin therapy in type 2 diabetes", "abstract": "Metformin reduces hepatic glucose production and improves insulin sensitivity."},
-            {"pmid": "1002", "title": "GLP-1 receptor agonists and heart disease", "abstract": "GLP-1 receptor agonists reduce major adverse cardiovascular events in high-risk patients."},
-            {"pmid": "1003", "title": "Dexamethasone efficacy in respiratory failure", "abstract": "Dexamethasone demonstrates mortality benefit in patients hospitalized with severe respiratory viral infection requiring mechanical ventilation."}
+            {
+                "pmid": "1001",
+                "title": "Metformin therapy in type 2 diabetes",
+                "abstract": "Metformin reduces hepatic glucose production and improves insulin sensitivity.",
+                "year": "2023",
+                "pub_types": ["Randomized Controlled Trial", "Journal Article"],
+                "topic": "type2_diabetes",
+                "stratum": "rct",
+                "doi": "10.1001/mock.1001",
+                "journal": "Diabetes Care",
+                "mesh_terms": ["Diabetes Mellitus, Type 2", "Metformin"]
+            },
+            {
+                "pmid": "1002",
+                "title": "GLP-1 receptor agonists and cardiovascular disease in diabetes",
+                "abstract": "GLP-1 receptor agonists reduce major adverse cardiovascular events in high-risk patients.",
+                "year": "2024",
+                "pub_types": ["Meta-Analysis", "Systematic Review"],
+                "topic": "type2_diabetes",
+                "stratum": "systematic_review",
+                "doi": "10.1001/mock.1002",
+                "journal": "Lancet Diabetes Endocrinol",
+                "mesh_terms": ["Glucagon-Like Peptide-1 Receptor Agonists", "Cardiovascular Diseases"]
+            },
+            {
+                "pmid": "1003",
+                "title": "Clinical Practice Guideline for the Management of Hypertension",
+                "abstract": "Comprehensive evidence-based recommendations for initial pharmacological therapy in essential hypertension.",
+                "year": "2023",
+                "pub_types": ["Practice Guideline", "Guideline"],
+                "topic": "hypertension",
+                "stratum": "guideline",
+                "doi": "10.1001/mock.1003",
+                "journal": "Hypertension",
+                "mesh_terms": ["Hypertension", "Practice Guideline"]
+            }
         ]
         with open(data_path, "w", encoding="utf-8") as f:
             json.dump(mock_data, f, indent=2)
@@ -160,6 +219,6 @@ if __name__ == "__main__":
     with open(data_path, "r", encoding="utf-8") as f:
         docs = json.load(f)
 
-    chunks, metadata = prepare_chunks(docs)
+    chunks, metadata = prepare_chunks(docs, chunk_size=args.chunk_size, overlap=args.overlap)
     index, embeddings = build_faiss_index(chunks, model_name=args.model)
     save_index_and_metadata(index, metadata)

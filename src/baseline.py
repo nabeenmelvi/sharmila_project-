@@ -38,7 +38,21 @@ class M1LexicalBaseline:
             docs = json.load(f)
 
         corpus_texts = [f"{d.get('title', '')} {d.get('abstract', '')}" for d in docs]
-        metadata = [{"pmid": d.get("pmid", str(i)), "title": d.get("title", ""), "chunk_text": corpus_texts[i]} for i, d in enumerate(docs)]
+        metadata = [
+            {
+                "pmid": str(d.get("pmid", i)),
+                "title": d.get("title", ""),
+                "chunk_text": corpus_texts[i],
+                "year": d.get("year", ""),
+                "pub_types": d.get("pub_types", []),
+                "topic": d.get("topic", ""),
+                "stratum": d.get("stratum", ""),
+                "doi": d.get("doi", ""),
+                "journal": d.get("journal", ""),
+                "mesh_terms": d.get("mesh_terms", []),
+            }
+            for i, d in enumerate(docs)
+        ]
         self.retriever = BM25Retriever(corpus_texts, metadata)
 
     def run_query(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
