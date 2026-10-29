@@ -1,0 +1,26 @@
+[
+  {
+    "id": "q1",
+    "question": "What is the primary mechanism of action of metformin in type 2 diabetes?",
+    "ground_truth_pmids": [
+      "12345678"
+    ],
+    "expected_answer": "Metformin primarily suppresses hepatic gluconeogenesis via activation of AMPK."
+  },
+  {
+    "id": "q2",
+    "question": "Are GLP-1 receptor agonists associated with reduced cardiovascular mortality?",
+    "ground_truth_pmids": [
+      "23456789"
+    ],
+    "expected_answer": "Yes, large clinical trials have demonstrated cardiovascular risk reduction."
+  },
+  {
+    "id": "q3",
+    "question": "Does dexamethasone improve survival in severe COVID-19 patients requiring oxygen?",
+    "ground_truth_pmids": [
+      "34567890"
+    ],
+    "expected_answer": "Yes, as demonstrated in the RECOVERY trial."
+  }
+]
